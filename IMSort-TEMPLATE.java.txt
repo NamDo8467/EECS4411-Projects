@@ -1,0 +1,120 @@
+// ===========================================================================
+// IMSort
+//     External Sort routine implemented in the "iterative merge"
+//     approach to sort a multi-page file representing a sequence of
+//     integers.
+// ---------------------------------------------------------------------------
+//  author: ?
+// created: ?
+//  latest: ?
+// ---------------------------------------------------------------------------
+// TEMPLATE
+// ---------------------------------------------------------------------------
+//  author: parke godfrey
+// version: 2025-10-08
+// ===========================================================================
+
+import java.io.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.PriorityQueue;
+import java.lang.Math;
+import intfile.IntFileUtils;
+import static intfile.IntFileUtils.readIntPage;
+import static intfile.IntFileUtils.writeIntPage;
+import static intfile.IntFileUtils.filePageSize;
+import static intfile.IntFileUtils.PAGE_SIZE;
+
+public class IMSort {
+    // -----------------------------------------------------------------------
+    // MAIN
+    //     fileName: name for the file to be sorted
+    //     frames:   the number of "buffer frames" allocated for the job
+    // 
+    //     sorts a large binary, multi-page length file representing a
+    //     sequence of integers
+    //     implements external sort 
+    // -----------------------------------------------------------------------
+
+    public static void main(String[] args)
+            throws FileNotFoundException, IOException, ArithmeticException {
+        // -------------------------------------------------------------------
+        // PROCESS COMMAND-LINE ARGUMENTS
+
+        if (args.length < 2) {
+            System.out.println("please provide name of integer"
+                             + "file to be sorted");
+            System.out.println("and number of buffer frames allocated");
+            System.exit(0);
+        }
+ 
+        String  intFile = args[0];
+        int     frames   = Integer.parseInt(args[1]);
+
+        if (frames < 3) {
+            System.out.println("must allocate at least three frames");
+            System.exit(-1);
+        }
+
+        // -------------------------------------------------------------------
+        // ALLOCATE THE BUFFER, ETC.
+
+        // 1,024 4-byte ints fit on a "page" in our buffer
+        // we emulate this by an array of int of length 1,024
+        // (PAGE_SIZE / 4) * number of FRAMES requested
+        int[] intBuf   = new int[(PAGE_SIZE / 4) * frames];
+        int[] frameOff = new int[frames + 1]; // last is for sentinel!
+        for (int i = 0; i < frameOff.length; i++) {
+            frameOff[i] = (PAGE_SIZE / 4) * i;
+        }
+        int outOff = frameOff[frames - 1]; // offset to last frame
+
+        int runNum      = 0; // used to sequentially number runs
+        int firstUnused = 0; // first of the runs still unused
+        int ioCount     = 0; // used to count IOs
+
+        // -------------------------------------------------------------------
+        // BLOCK SORT OPERATIONS
+        //   * read in frames number of pages into the intBuf,
+        //     sort across these,
+        //     write intBuf out as a temporary run file.
+        //   * NAMING CONVENTION: name run file intFile + "-RUN-" + runNum
+        //   * repeat until input file has been consumed
+
+        // YOUR CODE HERE ...
+        //   * NOTE: already imported Arrays above as you likely want to use
+        //     its sort method instead of implementing it from scratch
+
+        // -------------------------------------------------------------------
+        // MERGE OPERATIONS
+        //   * pick up earliest (frame - 1) unused runs and merge to make a
+        //     new output run
+        //   * if fewer than (frame - 1) unused runs remain, merge them;
+        //     this is the final run!
+        //   * name the final run as intFile + "-SORTED"
+        //   * be sure to remove runs once they have been used!
+        //   * note that the last frame of the buffer is being used to
+        //     accumulate the sorted results, writing out to the output run
+        //     every time it becomes full
+        //   * we also are careful not to be CPU bound, in case the number
+        //     of allocated frames is large!
+
+        // YOUR CODE HERE ...
+        //   * NOTE: already imported PriorityQueue above as you likely
+        //     want to use it in your merge procedure to be more
+        //     efficient, especially when the fan-in is large
+        //   * oh, and you really, really will want to use PriorityQueue 
+        //     for a second reason: it make the coding easier!
+
+        // while there are still input runs to merge:
+        //     consume frames - 1 unused input runs
+        //     produce a new, merged output run
+        //     runNum++
+
+        System.out.println("sorted with " 
+                         + runNum
+                         + " output runs in "
+                         + ioCount
+                         + " IOs");
+    }
+}
