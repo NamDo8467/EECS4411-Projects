@@ -170,6 +170,7 @@ public class IntFileUtils {
 			}
 			intStream.write(intPage2bytePage(intPage));
 		}
+		intStream.close();
     }
 
     // -----------------------------------------------------------------------
@@ -196,6 +197,7 @@ public class IntFileUtils {
 		RandomAccessFile inHandle = new RandomAccessFile(intFile, "r");
 		inHandle.seek(page * PAGE_SIZE);
 		int amount = inHandle.read(bytes); // read in PAGE of bytes
+		inHandle.close();
 		if (amount < PAGE_SIZE) {
             throw new IOException("not a PAGE worth of bytes returned"
 								+ " when reading from file "
@@ -211,6 +213,7 @@ public class IntFileUtils {
                 ints[i + offset] |= (int) bytes[4*i + j] & 0xFF;
             }
 		}
+		
 	}
 
     // -----------------------------------------------------------------------
@@ -229,6 +232,7 @@ public class IntFileUtils {
             throws FileNotFoundException, IOException {
 		OutputStream intStream = new FileOutputStream(intFile, !first);
 		intStream.write(intPage2bytePage(ints, offset));
+		intStream.close();
     }
 
     // -----------------------------------------------------------------------
