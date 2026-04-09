@@ -1,0 +1,34 @@
+                                                                                                  QUERY PLAN                                                                                                   
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=79396.06..79396.07 rows=1 width=32) (actual time=170.509..170.512 rows=5 loops=1)
+   Sort Key: p.custid, b.language, b.genre, b.publisher
+   Sort Method: quicksort  Memory: 25kB
+   ->  Hash Join  (cost=77044.35..79396.05 rows=1 width=32) (actual time=155.981..170.489 rows=5 loops=1)
+         Hash Cond: (((b.language)::text = (book.language)::text) AND ((b.genre)::text = (book.genre)::text) AND ((b.publisher)::text = (book.publisher)::text) AND ((count(DISTINCT p.bookid)) = (count(*))))
+         ->  GroupAggregate  (cost=75570.45..77226.58 rows=66245 width=40) (actual time=134.251..150.390 rows=6651 loops=1)
+               Group Key: p.custid, b.language, b.genre, b.publisher
+               ->  Sort  (cost=75570.45..75736.07 rows=66245 width=36) (actual time=134.243..137.081 rows=64440 loops=1)
+                     Sort Key: p.custid, b.language, b.genre, b.publisher, p.bookid
+                     Sort Method: quicksort  Memory: 5116kB
+                     ->  Hash Join  (cost=3102.83..70265.71 rows=66245 width=36) (actual time=15.427..34.535 rows=64440 loops=1)
+                           Hash Cond: (p.bookid = b.bookid)
+                           ->  Bitmap Heap Scan on purchase p  (cost=1533.83..68522.81 rows=66245 width=8) (actual time=2.497..7.505 rows=64440 loops=1)
+                                 Recheck Cond: (custid < 500)
+                                 Heap Blocks: exact=411
+                                 ->  Bitmap Index Scan on stl_purchase_pk  (cost=0.00..1517.27 rows=66245 width=0) (actual time=2.441..2.441 rows=64440 loops=1)
+                                       Index Cond: (custid < 500)
+                           ->  Hash  (cost=944.00..944.00 rows=50000 width=32) (actual time=12.772..12.773 rows=50000 loops=1)
+                                 Buckets: 65536  Batches: 1  Memory Usage: 3817kB
+                                 ->  Seq Scan on book b  (cost=0.00..944.00 rows=50000 width=32) (actual time=0.005..4.898 rows=50000 loops=1)
+         ->  Hash  (cost=1463.50..1463.50 rows=520 width=36) (actual time=19.028..19.028 rows=422 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 39kB
+               ->  HashAggregate  (cost=1444.00..1463.50 rows=520 width=36) (actual time=18.817..18.911 rows=422 loops=1)
+                     Group Key: book.language, book.genre, book.publisher
+                     Filter: (count(*) > 10)
+                     Batches: 1  Memory Usage: 129kB
+                     Rows Removed by Filter: 210
+                     ->  Seq Scan on book  (cost=0.00..944.00 rows=50000 width=28) (actual time=0.008..3.462 rows=50000 loops=1)
+ Planning Time: 0.971 ms
+ Execution Time: 170.900 ms
+(30 rows)
+

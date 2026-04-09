@@ -1,0 +1,27 @@
+                                                                       QUERY PLAN                                                                        
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=32225.13..32225.20 rows=26 width=45) (actual time=35.961..35.964 rows=16 loops=1)
+   Sort Key: (sum(p.sale)) DESC
+   Sort Method: quicksort  Memory: 25kB
+   ->  HashAggregate  (cost=32224.19..32224.52 rows=26 width=45) (actual time=35.926..35.932 rows=16 loops=1)
+         Group Key: c.country, b.language
+         Batches: 1  Memory Usage: 24kB
+         ->  Hash Join  (cost=4697.96..32146.25 rows=10393 width=19) (actual time=32.003..35.641 rows=919 loops=1)
+               Hash Cond: (p.bookid = b.bookid)
+               ->  Hash Join  (cost=3128.96..30549.96 rows=10393 width=16) (actual time=21.243..24.540 rows=919 loops=1)
+                     Hash Cond: (p.custid = c.custid)
+                     ->  Bitmap Heap Scan on purchase p  (cost=142.96..27536.68 rows=10393 width=14) (actual time=0.207..3.126 rows=919 loops=1)
+                           Recheck Cond: ((whenp >= '2012-01-01'::date) AND (whenp <= '2012-01-10'::date))
+                           Heap Blocks: exact=915
+                           ->  Bitmap Index Scan on stl_pur_ind_when  (cost=0.00..140.37 rows=10393 width=0) (actual time=0.094..0.095 rows=919 loops=1)
+                                 Index Cond: ((whenp >= '2012-01-01'::date) AND (whenp <= '2012-01-10'::date))
+                     ->  Hash  (cost=1736.00..1736.00 rows=100000 width=10) (actual time=20.712..20.713 rows=100000 loops=1)
+                           Buckets: 131072  Batches: 1  Memory Usage: 5223kB
+                           ->  Seq Scan on customer c  (cost=0.00..1736.00 rows=100000 width=10) (actual time=0.006..8.633 rows=100000 loops=1)
+               ->  Hash  (cost=944.00..944.00 rows=50000 width=11) (actual time=10.586..10.586 rows=50000 loops=1)
+                     Buckets: 65536  Batches: 1  Memory Usage: 2696kB
+                     ->  Seq Scan on book b  (cost=0.00..944.00 rows=50000 width=11) (actual time=0.007..4.435 rows=50000 loops=1)
+ Planning Time: 1.154 ms
+ Execution Time: 36.163 ms
+(23 rows)
+

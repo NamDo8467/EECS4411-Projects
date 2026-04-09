@@ -1,0 +1,37 @@
+                                                                                QUERY PLAN                                                                                 
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=163575.25..163575.31 rows=26 width=45) (actual time=1514.520..1520.125 rows=26 loops=1)
+   Sort Key: (sum(p.sale)) DESC
+   Sort Method: quicksort  Memory: 26kB
+   ->  Finalize GroupAggregate  (cost=163567.72..163574.64 rows=26 width=45) (actual time=1514.448..1520.106 rows=26 loops=1)
+         Group Key: c.country, b.language
+         ->  Gather Merge  (cost=163567.72..163573.79 rows=52 width=45) (actual time=1514.439..1520.064 rows=77 loops=1)
+               Workers Planned: 2
+               Workers Launched: 2
+               ->  Sort  (cost=162567.70..162567.77 rows=26 width=45) (actual time=1512.147..1512.152 rows=26 loops=3)
+                     Sort Key: c.country, b.language
+                     Sort Method: quicksort  Memory: 27kB
+                     Worker 0:  Sort Method: quicksort  Memory: 27kB
+                     Worker 1:  Sort Method: quicksort  Memory: 27kB
+                     ->  Partial HashAggregate  (cost=162566.76..162567.09 rows=26 width=45) (actual time=1512.087..1512.098 rows=26 loops=3)
+                           Group Key: c.country, b.language
+                           Batches: 1  Memory Usage: 32kB
+                           Worker 0:  Batches: 1  Memory Usage: 32kB
+                           Worker 1:  Batches: 1  Memory Usage: 32kB
+                           ->  Hash Join  (cost=4555.00..143830.29 rows=2498196 width=19) (actual time=29.920..1022.110 rows=2005388 loops=3)
+                                 Hash Cond: (p.bookid = b.bookid)
+                                 ->  Hash Join  (cost=2986.00..135702.97 rows=2498196 width=16) (actual time=19.526..661.677 rows=2005388 loops=3)
+                                       Hash Cond: (p.custid = c.custid)
+                                       ->  Parallel Seq Scan on purchase p  (cost=0.00..126158.93 rows=2498196 width=14) (actual time=0.008..308.239 rows=2005388 loops=3)
+                                             Filter: ((whenp >= '2012-01-01'::date) AND (whenp <= '2015-10-31'::date))
+                                             Rows Removed by Filter: 1327013
+                                       ->  Hash  (cost=1736.00..1736.00 rows=100000 width=10) (actual time=19.194..19.194 rows=100000 loops=3)
+                                             Buckets: 131072  Batches: 1  Memory Usage: 5223kB
+                                             ->  Seq Scan on customer c  (cost=0.00..1736.00 rows=100000 width=10) (actual time=0.009..8.251 rows=100000 loops=3)
+                                 ->  Hash  (cost=944.00..944.00 rows=50000 width=11) (actual time=10.211..10.212 rows=50000 loops=3)
+                                       Buckets: 65536  Batches: 1  Memory Usage: 2696kB
+                                       ->  Seq Scan on book b  (cost=0.00..944.00 rows=50000 width=11) (actual time=0.014..4.396 rows=50000 loops=3)
+ Planning Time: 1.027 ms
+ Execution Time: 1520.391 ms
+(33 rows)
+

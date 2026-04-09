@@ -1,0 +1,165 @@
+Query Variants Description
+---------------------------
+The two queries are variants of each other. They compute the total sales
+per country and book language by joining all three tables (Purchase,
+Customer, Book). The only difference between them is the date range in
+the WHERE clause:
+
+B-one.sql: whenp BETWEEN '2012-01-01' AND '2012-01-10'  (10 days)
+B-two.sql: whenp BETWEEN '2012-01-01' AND '2015-10-31'  (nearly 4 years)
+
+This small difference in predicate values causes the optimizer to produce
+significantly different query plans for each query.
+
+
+
+What B-plan1 does (10 day range)
+
+For every combination of customer country and book language, calculate the 
+total amount of sales made during the first 10 days of January 2012. Show 
+the results ordered from highest to lowest total sales.
+
+---------------------------
+1. Bitmap Index Scan on stl_pur_ind_when
+    The optimizer uses the `whenp` index to find all Purchase rows within the 10
+    day range. It builds a bitmap marking which pages in Purchase contain
+    matching rows. This is very fast and took only 0.094ms.
+
+2. Bitmap Heap Scan on purchase
+    Uses the bitmap from Step 1 to fetch only the marked pages from Purchase.
+    Rechecks the condition on each row. Only 919 rows out of 10M are returned.
+
+3. Seq Scan on customer, build hash table
+    Scans all 100,000 Customer rows. Builds a hash table keyed on custid.
+
+4. Hash Join on p.custid = c.custid
+    Probes the customer hash table with the 919 Purchase rows.
+    Every purchase matches a customer. Result: 919 rows.
+
+5. Seq Scan on book, build Hash table
+    Scans all 50,000 Book rows. Builds a hash table keyed on bookid.
+
+6. Hash Join on p.bookid = b.bookid
+    Probes the book hash table with the 919 rows from Step 4.
+    Every row matches a book. Result: 919 rows.
+
+7. HashAggregate
+    Groups the 919 rows by country and language. Computes SUM(sale) for each
+    group. Produces 16 distinct country+language groups.
+
+8. Sort
+    Sort the 16 groups by total_sales DESC using quicksort. Return the final
+    16 rows.
+
+Total Execution Time: 36ms
+
+
+
+
+What B-plan2 does (4 year range)
+
+For every combination of customer country and book language, calculate the 
+total amount of sales made between January 2012 and October 2015. Show the 
+results ordered from highest to lowest total sales.
+
+--------------------------------
+
+1. Seq Scan on customer, buid Hash table (per worker)
+    Each of 3 parallel workers scans and builds its own copy of the customer
+    hash table from all 100,000 rows.
+
+2. Seq Scan on book, build Hash table (per worker)
+    Each of 3 parallel workers builds its own copy of the book hash table
+    from all 50,000 rows.
+
+3. Parallel Seq Scan on purchase
+    The Purchase table is split across 3 parallel workers. Each worker scans
+    its own chunk sequentially and applies the date filter. No index is used.
+
+4. Hash join p.custid = c.custid (purchase and customer)
+    Each worker probes its own customer hash table with its own Purchase data
+    from the previous step. Result per worker: 2,005,388 rows.
+
+5. Hash join p.bookid = book.bookid (previous result and book)
+    Each worker probes its own book hash table with its own Purchase data
+    from the previous step (2,005,388 rows). Result per worker: 2,005,388 rows
+
+6. Partial HashAggregate (per worker)
+    Each worker groups its own rows by country and language and computes a
+    partial sum(p.sale) for each group. Each worker produces 26 groups.
+
+7. Sort per worker
+    Each worker sorts its 26 groups.
+
+8. Gather Merge
+    Collects the sorted partial results from all 3 workers and merges them.
+    Result: 77 rows in total.
+
+9. Finalize GroupAggregate
+    Combines the partial sums for the same country+language group
+    across all workers into final correct totals. For example, if
+    all 3 workers had partial sums for Canada+English, this step
+    adds them together. Result: 26 final groups.
+
+10. Final sort
+    Sorts the 26 final groups by total_sales DESC using quicksort.
+    Returns the final 26 rows.
+
+Total Execution Time: 1,520ms
+
+
+
+
+How the Two Plans Differ
+-------------------------
+The two plans differ in the following ways:
+
+1. Access path on Purchase table
+    B-plan1 uses a Bitmap Index Scan on the `whenp` index, jumping directly to
+    the 919 matching rows without reading the whole table. B-plan2 uses a 
+    Parallel Sequential Scan, reading the entire Purchase table across 
+    3 workers because too many rows match for an index to be efficient.
+
+2. Parallelism
+    B-plan1 uses no parallelism (loop=1 everywhere) while B-plan2 depends heavily
+    on paralellism (loop=3) to process the query.
+
+3. Aggregation strategy:
+    B-plan1 uses a simple single HashAggregate since the input is tiny.
+    B-plan2 uses ParitialHashAggregate per worker, then Gather Merge, then
+    Finalize GroupAggregate
+
+4. Sorting
+    B-plan1 does a single quicksort on 16 rows at the end.
+    B-plan2 does a quicksort per worker on 26 rows, then uses Gather Merge
+    to merge them in sorted order, then a final sort by total_sales DESC.
+
+5. Execution time
+    B-plan1: 36ms
+    B-plan2: 1,520ms
+
+
+
+The difference in plans is caused entirely by how selective the date range
+ predicate is:
+
+B-plan1 (10 days): Only 919 rows out of 10M.The optimizer determines it is 
+much cheaper to use the whenp index to jump directly to those 919 rows 
+rather than reading the whole table. With very few rows, there is no need 
+for parallelism and a simple single can process handles everything efficiently
+
+
+B-plan2 (nearly 4 years): About 6M rows out of 10M match. At this scale,
+using the index would mean jumping to 6M scattered locations across the table
+which is slower than simply reading the whole table sequentially. 
+The optimizer switches to a Sequential Scan. With so many rows to process,
+the optimizer also determines that parallel execution is worth the overhead 
+and launches 2 additional workers.
+
+
+
+This switch from Index Scan to Sequential Scan as the date range grows is the
+"tipping point" — the point at which the optimizer determines that a different 
+plan is cheaper. The tipping point lies somewhere between 10 days and 4 years
+of data, where the cost of random index lookups exceeds the cost of a full
+sequential scan.

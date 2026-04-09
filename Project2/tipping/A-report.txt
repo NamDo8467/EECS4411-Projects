@@ -1,0 +1,57 @@
+Overview: The query plan finds the top 10 highest-spending customers in 
+Canada who bought Romance books, by joining all three tables, 
+aggregating sales per customer, sorting and returning the top 10. 
+
+
+1. Sequential Scans on Book and Customer
+	- Seq scan on Book:
+		+ Estimated rows: 4552
+		+ Actual rows: 4625
+	- Seq scan on Customer:
+		+ Estimated rows: 74,510
+		+ Actual rows:    74,811
+The optimizer did a very good job in both scan, the predicted numbers are very
+close to the actual ones. No significant deviation here.
+
+2. Parallel Seq Scan on Purchase:
+	- Estimated rows: 4,165,462 per worker
+	- Actual rows:    3,332,401 per worker
+	- Difference:     -833,061 rows
+The optimizer overestimated how many rows each worker would scan. Moderate
+deviation.
+
+3. First Hash Join (p.bookid = b.bookid):
+	- Estimated rows: 379,224 per worker
+	- Actual rows:    442,865 per worker
+	- Difference:     +63,641 rows
+Moderate deviation. The optimizer underestimated how many Purchase rows would
+match Romance books. The error from the Purchase scan above likely carried 
+forward and amplified here.
+
+4. Second Hash Join (p.custid = c.custid):
+	- Estimated rows: 282,560 per worker
+	- Actual rows:    352,638 per worker
+	- Difference:     +70,078 rows
+Significant deviation. The optimizer understimated how many matching Romance
+book purchases are from Canadian customers. This error is most likely
+compounded from previous steps.
+
+5. Partial HashAggregate
+	- Estimated groups: 74,510 per worker
+	- Actual groups:    8,958 per worker
+	- Difference:       -65,552 groups (87.9% off)
+Most significant deviation. The optimizer expected around 74,510 customers per
+worker but the actual data was about 8,958, a much smaller quantity. This is
+because the optimizer assumes that each worker would see all Canadian
+customers but in reality each worker would potential see only a portion of the
+total purchase from each customer. For example, a worker sees 10 purchases from
+customer A but thats not it, two other workers each sees another 10 purchases
+from the same customer and the optimizer was likely treating this as 30
+distinct customers.
+
+6. Overall Execution Time
+	- Planning time: 1.006 ms
+	- Execution time: 707.171 ms
+	- Estimated total cost: 143,211 cost units
+The optimizer ran in just 707ms despite joining roughtly 10 million rows with
+two other tables.
